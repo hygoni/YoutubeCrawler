@@ -122,6 +122,9 @@ def connect():
 
 def saveVideo(title, link, visit):
 	print('Saving video... : ' + link)
+	if doesExist('videos', 'link', link):
+		print('This video already exists!')
+		return
 	con, cur = connect()
 	cur.execute("INSERT INTO videos VALUES(?, ?, ?)", (title, link, visit))
 	con.commit()
@@ -136,11 +139,11 @@ def saveYoutuber(name, link, subscribers):
 
 def saveUnvisited(link):
 	print('Saving unvisited... : ' + link)
-	con, cur = connect()
-	cur.execute("INSERT INTO unvisited VALUES(?)", (link, ))
 	if doesExist('unvisited', 'link', link) or doesExist('videos', 'link', link):
 		print('This link already exists!')
 		return
+	con, cur = connect()
+	cur.execute("INSERT INTO unvisited VALUES(?)", (link, ))
 	con.commit()
 	con.close()
 
