@@ -15,11 +15,12 @@ keywords = ['오버워치', '롤', '배틀그라운드']
 def getRecentVideos(driver, keyword):
 	url = 'https://www.youtube.com/results?search_query={}&sp=CAISBAgBEAE%253D'.format(keyword)
 	driver.get(url)
+	scroll(driver, 4)
 	recents = driver.find_elements_by_xpath('//*[@id="video-title"]')
 	returnList = [recent.get_attribute('href') for recent in recents]
 	for link in returnList:
 		if link is not None: #광고 영상은 패스
-			saveUnvisited(link)
+			saveUnvisited(link, keyword)
 
 def getVideoInfo(driver, url):
 	driver.get(url)
@@ -39,23 +40,7 @@ def getRelatedLinks(driver, url):
 #댓글을 단 계정의 링크를 가져옴
 def getCommentLinks(driver, url):
 	driver.get(url)
-	cnt = 0
-	maxCnt = 4
-	last_height = driver.execute_script("return document.documentElement.scrollHeight")
-	while True:
-		if cnt == maxCnt:
-			break;
-		cnt += 1
-		#아래로 스크롤
-		driver.execute_script("window.scrollTo(0, document.documentElement.scrollHeight);")
-		# 댓글 로딩
-		time.sleep(2)
-		#스크롤할 위치 갱신
-		new_height = driver.execute_script("return document.documentElement.scrollHeight")
-		if new_height == last_height:
-			break
-		last_height = new_height
-		driver.execute_script("window.scrollTo(0, document.documentElement.scrollHeight);")
+	scroll(driver, 4)
 	#코멘트 불러오기
 	comments = driver.find_elements_by_xpath('//*[@id="author-text"]')
 	returnList = [comment.get_attribute('href') for comment in comments]
@@ -75,11 +60,11 @@ def getVideoList(driver, url):
 def crawlVideos(driver):
 	global videoList
 	global channelList
-	url = getVideo()
+	url, keyword = getVideo()
 	if url is None:
 		return
 	title, count, youtuber = getVideoInfo(driver, url)
-	saveVideo(title, url, count)
+	saveVideo(title, url, count, keyword)
 
 #채널 크롤링
 def crawlChannels(driver):
@@ -97,20 +82,23 @@ def crawlRecentVideos(driver):
 def getVideo():
 	try:
 		con, cur = connect()
-		sql = 'SELECT * FROM unvisited ORDER BY RANDOM() limit 1'
+		sql = 'SELECT link, keyword FROM unvisited ORDER BY RANDOM() limit 1'
 		print(sql)
 		cur.execute(sql)
 		row = cur.fetchall()
 		url = row[0][0]
+		keyword = row[0][1]
 		if not isinstance(url, str):
 			url = url.decode()
 		sql = "DELETE FROM unvisited WHERE link = '{}'".format(url)
 		print(sql)
 		cur.execute(sql)
 		con.commit()
-		return url
+		return url, keyword
 	except:
+		traceback.print_exc()
 		print('No videos unvisited!')
+		return None, None
 
 def getChannel():
 	con, cur = connect()
@@ -124,17 +112,16 @@ def connect():
 	con = sqlite3.connect('data.db')
 	cur = con.cursor()
 	cur.execute("CREATE TABLE IF NOT EXISTS youtubers(name text, link text, subscribers int);")
-	cur.execute("CREATE TABLE IF NOT EXISTS videos(title text, link text, visit int);")
-	cur.execute("CREATE TABLE IF NOT EXISTS unvisited(link text);")
+	cur.execute("CREATE TABLE IF NOT EXISTS videos(title text, link text, visit int, keyword text);")
+	cur.execute("CREATE TABLE IF NOT EXISTS unvisited(link text, keyword text);")
 	return con, cur
 
-def saveVideo(title, link, visit):
-	print('Saving video... : ' + link)
+def saveVideo(title, link, visit, keyword):
 	if doesExist('videos', 'link', link):
-		print('This video already exists!')
 		return
+	print('Saving video... : ' + link)
 	con, cur = connect()
-	cur.execute("INSERT INTO videos VALUES(?, ?, ?)", (title, link, visit))
+	cur.execute("INSERT INTO videos VALUES(?, ?, ?, ?)", (title, link, visit, keyword))
 	con.commit()
 	con.close()
 
@@ -145,13 +132,12 @@ def saveYoutuber(name, link, subscribers):
 	con.commit()
 	con.close()
 
-def saveUnvisited(link):
-	print('Saving unvisited... : ' + link)
+def saveUnvisited(link, keyword):
 	if doesExist('unvisited', 'link', link) or doesExist('videos', 'link', link):
-		print('This link already exists!')
 		return
+	print('Saving unvisited... : ' + link)
 	con, cur = connect()
-	cur.execute("INSERT INTO unvisited VALUES(?)", (link, ))
+	cur.execute("INSERT INTO unvisited VALUES(?, ?)", (link, keyword))
 	con.commit()
 	con.close()
 
@@ -175,17 +161,36 @@ def getCount(table):
 	con.close()
 	return count
 
+def scroll(driver, maxCnt):
+	cnt = 0
+	last_height = driver.execute_script("return document.documentElement.scrollHeight")
+	while True:
+		if cnt == maxCnt:
+			break;
+		cnt += 1
+		#아래로 스크롤
+		driver.execute_script("window.scrollTo(0, document.documentElement.scrollHeight);")
+		# 댓글 로딩
+		time.sleep(2)
+		#스크롤할 위치 갱신
+		new_height = driver.execute_script("return document.documentElement.scrollHeight")
+		if new_height == last_height:
+			break
+		last_height = new_height
+		driver.execute_script("window.scrollTo(0, document.documentElement.scrollHeight);")
+
 #크롬 드라이버를 불러온다 (headless 버전 테스트하고 headless로 교체해야함 )
 driver = webdriver.Chrome('./chromedriver.exe')
 driver.implicitly_wait(3) #드라이버 로딩
 
-if __name__ == '__main__':
-	while True:
-		try:
-			crawlRecentVideos(driver)
-			count = getCount('unvisited')
-			for i in range(count):
-				crawlVideos(driver)
-		except:
-			traceback.print_exc()
-	driver.close() #크롬 드라이버 반환
+
+while True:
+	try:
+		crawlRecentVideos(driver)
+		count = getCount('unvisited')
+		print('Crawling {} vidoes...'.format(count))
+		for i in range(count):
+			crawlVideos(driver)
+	except:
+		traceback.print_exc()
+driver.close() #크롬 드라이버 반환
