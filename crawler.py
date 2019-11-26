@@ -171,14 +171,13 @@ def getCount(table):
 driver = webdriver.Chrome('./chromedriver.exe')
 driver.implicitly_wait(3) #드라이버 로딩
 
-while True:
-	try:
-		crawlRecentVideos(driver)
-		count = getCount('unvisited')
-		for i in range(count):
-			crawlVideos(driver)
-	except:
-		traceback.print_exc()
-		break
-
-driver.close() #크롬 드라이버 반환
+if __name__ == '__main__':
+	while True:
+		try:
+			crawlRecentVideos(driver)
+			count = getCount('unvisited')
+			for i in range(count):
+				crawlVideos(driver)
+		except:
+			traceback.print_exc()
+	driver.close() #크롬 드라이버 반환
