@@ -6,8 +6,9 @@ from lxml import etree
 import os
 import time
 import sqlite3
+import sys
 
-keywords = ['오버워치', '롤', '리그오브레전드']
+keywords = ['오버워치']
 
 #키워드로 최근 영상 찾는 함수, 예외 처리 추가해야함
 def getRecentVideos(driver, keyword):
@@ -85,12 +86,17 @@ def crawlRecentVideos(driver):
 def getVideo():
 	con, cur = connect()
 	sql = 'SELECT * FROM unvisited ORDER BY RANDOM() limit 1'
+	print(sql)
 	cur.execute(sql)
 	row = cur.fetchall()
-	sql = "DELETE FROM unvisited WHERE link = '{}'".format(row[0][0])
+	url = row[0][0]
+	if not isinstance(url, str):
+		url = url.decode()
+	sql = "DELETE FROM unvisited WHERE link = '{}'".format(url)
+	print(sql)
 	cur.execute(sql)
 	con.commit()
-	return row[0][0]
+	return url
 
 def getChannel():
 	con, cur = connect()
@@ -125,8 +131,23 @@ def saveUnvisited(link):
 	print('Saving unvisited... : ' + link)
 	con, cur = connect()
 	cur.execute("INSERT INTO unvisited VALUES(?)", (link, ))
+	if doesExist('unvisited', 'link', link) or doesExist('videos', 'link', link):
+		print('This link already exists!')
+		return
 	con.commit()
 	con.close()
+
+def doesExist(table, name, value, isString=True):
+	con, cur = connect()
+	sql = ''
+	if isString:
+		sql = "SELECT count(*) FROM {} WHERE {} = '{}'".format(table, name, value)
+	else:
+		sql = "SELECT count(*) FROM {} WHERE {} = {}".format(table, name, value)
+	cur.execute(sql)
+	count = cur.fetchone()[0]
+	con.close()
+	return count > 0
 
 
 #크롬 드라이버를 불러온다 (headless 버전 테스트하고 headless로 교체해야함 )
@@ -134,6 +155,7 @@ driver = webdriver.Chrome('./chromedriver.exe')
 driver.implicitly_wait(3) #드라이버 로딩
 
 while True:
+	print(sys.version)
 	crawlRecentVideos(driver)
 	for i in range(3):
 		crawlVideos(driver)
