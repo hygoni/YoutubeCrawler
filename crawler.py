@@ -7,8 +7,9 @@ import os
 import time
 import sqlite3
 import sys
+import traceback
 
-keywords = ['오버워치']
+keywords = ['오버워치', '롤', '배틀그라운드']
 
 #키워드로 최근 영상 찾는 함수, 예외 처리 추가해야함
 def getRecentVideos(driver, keyword):
@@ -17,7 +18,8 @@ def getRecentVideos(driver, keyword):
 	recents = driver.find_elements_by_xpath('//*[@id="video-title"]')
 	returnList = [recent.get_attribute('href') for recent in recents]
 	for link in returnList:
-		saveUnvisited(link)
+		if link is not None:
+			saveUnvisited(link)
 
 def getVideoInfo(driver, url):
 	driver.get(url)
@@ -70,6 +72,8 @@ def crawlVideos(driver):
 	global videoList
 	global channelList
 	url = getVideo()
+	if url is None:
+		return
 	title, count, youtuber = getVideoInfo(driver, url)
 	saveVideo(title, url, count)
 
@@ -84,19 +88,22 @@ def crawlRecentVideos(driver):
 		getRecentVideos(driver, keyword)
 
 def getVideo():
-	con, cur = connect()
-	sql = 'SELECT * FROM unvisited ORDER BY RANDOM() limit 1'
-	print(sql)
-	cur.execute(sql)
-	row = cur.fetchall()
-	url = row[0][0]
-	if not isinstance(url, str):
-		url = url.decode()
-	sql = "DELETE FROM unvisited WHERE link = '{}'".format(url)
-	print(sql)
-	cur.execute(sql)
-	con.commit()
-	return url
+	try:
+		con, cur = connect()
+		sql = 'SELECT * FROM unvisited ORDER BY RANDOM() limit 1'
+		print(sql)
+		cur.execute(sql)
+		row = cur.fetchall()
+		url = row[0][0]
+		if not isinstance(url, str):
+			url = url.decode()
+		sql = "DELETE FROM unvisited WHERE link = '{}'".format(url)
+		print(sql)
+		cur.execute(sql)
+		con.commit()
+		return url
+	except:
+		print('No videos unvisited!')
 
 def getChannel():
 	con, cur = connect()
@@ -149,15 +156,26 @@ def doesExist(table, name, value, isString=True):
 	con.close()
 	return count > 0
 
+def getCount(table):
+	con, cur = connect()
+	sql = "SELECT count(*) FROM {}".format(table)
+	cur.execute(sql)
+	count = cur.fetchone()[0]
+	con.close()
+	return count
 
 #크롬 드라이버를 불러온다 (headless 버전 테스트하고 headless로 교체해야함 )
 driver = webdriver.Chrome('./chromedriver.exe')
 driver.implicitly_wait(3) #드라이버 로딩
 
 while True:
-	print(sys.version)
-	crawlRecentVideos(driver)
-	for i in range(3):
-		crawlVideos(driver)
+	try:
+		crawlRecentVideos(driver)
+		count = getCount('unvisited')
+		for i in range(count):
+			crawlVideos(driver)
+	except:
+		traceback.print_exc()
+		break
 
 driver.close() #크롬 드라이버 반환
