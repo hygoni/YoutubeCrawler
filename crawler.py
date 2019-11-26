@@ -18,7 +18,7 @@ def getRecentVideos(driver, keyword):
 	recents = driver.find_elements_by_xpath('//*[@id="video-title"]')
 	returnList = [recent.get_attribute('href') for recent in recents]
 	for link in returnList:
-		if link is not None:
+		if link is not None: #광고 영상은 패스
 			saveUnvisited(link)
 
 def getVideoInfo(driver, url):
@@ -28,6 +28,7 @@ def getVideoInfo(driver, url):
 	youtuber = driver.find_element_by_xpath('//*[@id="text"]/a').text
 	return title, count, youtuber
 
+#한 영상의 관련 동영상을 불러옴 
 def getRelatedLinks(driver, url):
 	driver.get(url)
 	lst = driver.find_elements_by_xpath('//*[@id="dismissable"]/div[1]/a')
@@ -35,6 +36,7 @@ def getRelatedLinks(driver, url):
 	print(returnList)
 	return returnList
 
+#댓글을 단 계정의 링크를 가져옴
 def getCommentLinks(driver, url):
 	driver.get(url)
 	cnt = 0
@@ -60,6 +62,7 @@ def getCommentLinks(driver, url):
 	return returnList
 
 
+#특정 사용자의 비디오 리스트를 불러옴
 def getVideoList(driver, url):
 	url = os.path.join(url, 'videos')
 	driver.get(url)
@@ -68,6 +71,7 @@ def getVideoList(driver, url):
 	returnList = [video.get_attribute('href') for video in videos]
 	return returnList	
 
+#unvisited 동영상 중 하나를 가져와서 크롤링
 def crawlVideos(driver):
 	global videoList
 	global channelList
@@ -77,16 +81,19 @@ def crawlVideos(driver):
 	title, count, youtuber = getVideoInfo(driver, url)
 	saveVideo(title, url, count)
 
+#채널 크롤링
 def crawlChannels(driver):
 	global videoList
 	global channelList
 	url = getChannel()
 	videoList += getVideoList(driver, url)
 
+#카워드별 최근 동영상 크롤링
 def crawlRecentVideos(driver):
 	for keyword in keywords:
 		getRecentVideos(driver, keyword)
 
+#unvisited 동영상 중 하나를 가져온 후 DB에서 삭제함
 def getVideo():
 	try:
 		con, cur = connect()
@@ -112,6 +119,7 @@ def getChannel():
 	row = cur.fetchall()
 	return row[0]
 
+#DB에 연결
 def connect():
 	con = sqlite3.connect('data.db')
 	cur = con.cursor()
