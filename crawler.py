@@ -13,8 +13,8 @@ keywords = ['오버워치', '롤', '배틀그라운드']
 
 #키워드로 최근 영상 찾는 함수, 예외 처리 추가해야함
 def getRecentVideos(driver, keyword):
-	url = 'https://www.youtube.com/results?search_query={}&sp=CAISBAgBEAE%253D'.format(keyword)
-	driver.get(url)
+	link = 'https://www.youtube.com/results?search_query={}&sp=CAISBAgBEAE%253D'.format(keyword)
+	driver.get(link)
 	scroll(driver, 4)
 	recents = driver.find_elements_by_xpath('//*[@id="video-title"]')
 	returnList = [recent.get_attribute('href') for recent in recents]
@@ -22,24 +22,24 @@ def getRecentVideos(driver, keyword):
 		if link is not None: #광고 영상은 패스
 			saveUnvisited(link, keyword)
 
-def getVideoInfo(driver, url):
-	driver.get(url)
+def getVideoInfo(driver, link):
+	driver.get(link)
 	title = driver.find_element_by_xpath('//*[@id="container"]/h1/yt-formatted-string').text
 	count = driver.find_element_by_xpath('//*[@id="count"]/yt-view-count-renderer/span[1]').text
 	youtuber = driver.find_element_by_xpath('//*[@id="text"]/a').text
 	return title, count, youtuber
 
 #한 영상의 관련 동영상을 불러옴 
-def getRelatedLinks(driver, url):
-	driver.get(url)
+def getRelatedLinks(driver, link):
+	driver.get(link)
 	lst = driver.find_elements_by_xpath('//*[@id="dismissable"]/div[1]/a')
 	returnList = [elem.get_attribute('href') for elem in lst]
 	print(returnList)
 	return returnList
 
 #댓글을 단 계정의 링크를 가져옴
-def getCommentLinks(driver, url):
-	driver.get(url)
+def getCommentLinks(driver, link):
+	driver.get(link)
 	scroll(driver, 4)
 	#코멘트 불러오기
 	comments = driver.find_elements_by_xpath('//*[@id="author-text"]')
@@ -48,9 +48,9 @@ def getCommentLinks(driver, url):
 
 
 #특정 사용자의 비디오 리스트를 불러옴
-def getVideoList(driver, url):
-	url = os.path.join(url, 'videos')
-	driver.get(url)
+def getVideoList(driver, link):
+	link = os.path.join(link, 'videos')
+	driver.get(link)
 	sleep(2)
 	videos = driver.find_elements_by_xpath('//*[@id="video-title"]')
 	returnList = [video.get_attribute('href') for video in videos]
@@ -60,18 +60,13 @@ def getVideoList(driver, url):
 def crawlVideos(driver):
 	global videoList
 	global channelList
-	url, keyword = getVideo()
-	if url is None:
+	link, keyword = getVideo()
+	if link is None:
 		return
-	title, count, youtuber = getVideoInfo(driver, url)
-	saveVideo(title, url, count, keyword)
-
-#채널 크롤링
-def crawlChannels(driver):
-	global videoList
-	global channelList
-	url = getChannel()
-	videoList += getVideoList(driver, url)
+	title, count, youtuber = getVideoInfo(driver, link)
+	channelLink = getYoutuberFromVideo(driver, link)
+	crawlChannels(driver, channelLink)
+	saveVideo(channelLink, title, link, count, keyword)
 
 #카워드별 최근 동영상 크롤링
 def crawlRecentVideos(driver):
@@ -86,15 +81,15 @@ def getVideo():
 		print(sql)
 		cur.execute(sql)
 		row = cur.fetchall()
-		url = row[0][0]
+		link = row[0][0]
 		keyword = row[0][1]
-		if not isinstance(url, str):
-			url = url.decode()
-		sql = "DELETE FROM unvisited WHERE link = '{}'".format(url)
+		if not isinstance(link, str):
+			link = link.decode()
+		sql = "DELETE FROM unvisited WHERE link = '{}'".format(link)
 		print(sql)
 		cur.execute(sql)
 		con.commit()
-		return url, keyword
+		return link, keyword
 	except:
 		traceback.print_exc()
 		print('No videos unvisited!')
@@ -112,21 +107,23 @@ def connect():
 	con = sqlite3.connect('data.db')
 	cur = con.cursor()
 	cur.execute("CREATE TABLE IF NOT EXISTS youtubers(name text, link text, subscribers int);")
-	cur.execute("CREATE TABLE IF NOT EXISTS videos(title text, link text, visit int, keyword text);")
+	cur.execute("CREATE TABLE IF NOT EXISTS videos(youtuber_link text, title text, link text, visit int, keyword text);")
 	cur.execute("CREATE TABLE IF NOT EXISTS unvisited(link text, keyword text);")
 	return con, cur
 
-def saveVideo(title, link, visit, keyword):
+def saveVideo(youtuberLink, title, link, visit, keyword):
 	if doesExist('videos', 'link', link):
 		return
 	print('Saving video... : ' + link)
 	con, cur = connect()
-	cur.execute("INSERT INTO videos VALUES(?, ?, ?, ?)", (title, link, visit, keyword))
+	cur.execute("INSERT INTO videos VALUES(?, ?, ?, ?, ?)", (youtuberLink, title, link, visit, keyword))
 	con.commit()
 	con.close()
 
 def saveYoutuber(name, link, subscribers):
-	print('Saving video... : ' + link)
+	if doesExist('youtubers', 'link', link):
+		return
+	print('Saving youtuber... : ' + link)
 	con, cur = connect()
 	cur.execute("INSERT INTO youtubers VALUES(?, ?, ?)", (name, link, subscribers))
 	con.commit()
@@ -179,6 +176,21 @@ def scroll(driver, maxCnt):
 		last_height = new_height
 		driver.execute_script("window.scrollTo(0, document.documentElement.scrollHeight);")
 
+def getYoutuberFromVideo(driver, link):
+	driver.get(link)
+	channel = driver.find_element_by_xpath('//*[@id="text"]/a').get_attribute('href')
+	return channel
+
+#채널 크롤링
+def crawlChannels(driver, link):
+	if doesExist('youtubers', 'link', link):
+		return
+	print('Crawling channel... : {}'.format(link))
+	driver.get(link)
+	name = driver.find_element_by_xpath('//*[@id="text-container"]').text
+	subscribers = driver.find_element_by_xpath('//*[@id="subscriber-count"]').text
+	saveYoutuber(name, link, subscribers)
+
 #크롬 드라이버를 불러온다 (headless 버전 테스트하고 headless로 교체해야함 )
 driver = webdriver.Chrome('./chromedriver.exe')
 driver.implicitly_wait(3) #드라이버 로딩
@@ -186,11 +198,12 @@ driver.implicitly_wait(3) #드라이버 로딩
 
 while True:
 	try:
-		crawlRecentVideos(driver)
+		
 		count = getCount('unvisited')
 		print('Crawling {} vidoes...'.format(count))
 		for i in range(count):
 			crawlVideos(driver)
+		crawlRecentVideos(driver)
 	except:
 		traceback.print_exc()
 driver.close() #크롬 드라이버 반환
