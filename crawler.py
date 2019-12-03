@@ -8,6 +8,7 @@ import time
 import sqlite3
 import sys
 import traceback
+import re
 
 keywords = ['오버워치', '롤', '배틀그라운드']
 
@@ -115,6 +116,7 @@ def saveVideo(youtuberLink, title, link, visit, keyword):
 	if doesExist('videos', 'link', link):
 		return
 	print('Saving video... : ' + link)
+	visit = subscribersToInteger(visit) # '구독자 XX명' -> 숫자로 변환
 	con, cur = connect()
 	cur.execute("INSERT INTO videos VALUES(?, ?, ?, ?, ?)", (youtuberLink, title, link, visit, keyword))
 	con.commit()
@@ -189,7 +191,31 @@ def crawlChannels(driver, link):
 	driver.get(link)
 	name = driver.find_element_by_xpath('//*[@id="text-container"]').text
 	subscribers = driver.find_element_by_xpath('//*[@id="subscriber-count"]').text
-	saveYoutuber(name, link, subscribers)
+	saveYoutuber(name, link, subscribersToInteger(subscribers))
+
+def subscribersToInteger(text):
+	if text == None or text == '':
+		return 0
+	p = re.compile('[0-9]+(\.)?[0-9]*(만명|천명|명)')
+	m = p.search(text)
+	if m == None:
+		return 0
+	text = m.group()
+	num = 0.0
+	multiplier = 1
+	p = re.compile('[0-9]+(\.)?[0-9]*')
+	m = p.search(text)
+	num = float(m.group())
+	p = re.compile('(만명|천명|명)')
+	m = p.search(text)
+	text = m.group()
+	if text == '만명':
+		multiplier = 10000
+	elif text == '천명':
+		multiplier = 1000
+	elif text == '명':
+		multiplier = 1
+	return int(num * multiplier)
 
 #크롬 드라이버를 불러온다 (headless 버전 테스트하고 headless로 교체해야함 )
 driver = webdriver.Chrome('./chromedriver.exe')
