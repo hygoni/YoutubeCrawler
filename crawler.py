@@ -116,7 +116,7 @@ def saveVideo(youtuberLink, title, link, visit, keyword):
 	if doesExist('videos', 'link', link):
 		return
 	print('Saving video... : ' + link)
-	visit = subscribersToInteger(visit) # '구독자 XX명' -> 숫자로 변환
+	visit = visitorsToInteger(visit)
 	con, cur = connect()
 	cur.execute("INSERT INTO videos VALUES(?, ?, ?, ?, ?)", (youtuberLink, title, link, visit, keyword))
 	con.commit()
@@ -127,6 +127,7 @@ def saveYoutuber(name, link, subscribers):
 		return
 	print('Saving youtuber... : ' + link)
 	con, cur = connect()
+	subscribers = subscribersToInteger(subscribers)
 	cur.execute("INSERT INTO youtubers VALUES(?, ?, ?)", (name, link, subscribers))
 	con.commit()
 	con.close()
@@ -191,7 +192,7 @@ def crawlChannels(driver, link):
 	driver.get(link)
 	name = driver.find_element_by_xpath('//*[@id="text-container"]').text
 	subscribers = driver.find_element_by_xpath('//*[@id="subscriber-count"]').text
-	saveYoutuber(name, link, subscribersToInteger(subscribers))
+	saveYoutuber(name, link, subscribers)
 
 def subscribersToInteger(text):
 	if text == None or text == '':
@@ -216,6 +217,20 @@ def subscribersToInteger(text):
 	elif text == '명':
 		multiplier = 1
 	return int(num * multiplier)
+
+def visitorsToInteger(text):
+	p = re.compile('[0-9]+.*[0-9]')
+	m = p.search(text)
+	if m == None:
+		return 0
+	text = m.group()
+	p = re.compile('^(\d+|\d{1,3}(,\d{3})*)(\.\d+)?$')
+	m = p.search(text)
+	if m == None:
+		return 0
+	text = m.group()
+	print
+	return int(text.replace(',', ''))
 
 #크롬 드라이버를 불러온다 (headless 버전 테스트하고 headless로 교체해야함 )
 driver = webdriver.Chrome('./chromedriver.exe')
