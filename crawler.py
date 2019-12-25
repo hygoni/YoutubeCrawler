@@ -19,14 +19,18 @@ keywords = ['오버워치', '롤', '배틀그라운드']
 driver = webdriver.Chrome('./chromedriver.exe')
 driver.implicitly_wait(3) #드라이버 로딩
 
+con = db.connect()
 
 while True:
 	try:
-		count = db.getCount('unvisited')
+		count = db.getCount(con, 'unvisited')
 		print('Crawling {} vidoes...'.format(count))
 		for i in range(count):
-			crawl.crawlVideos(driver)
-		crawl.crawlRecentVideos(driver)
+			crawl.crawlVideos(con, driver)
+		crawl.crawlRecentVideos(con, driver)
+	except KeyboardInterrupt:
+		exit()
 	except:
 		traceback.print_exc()
+		
 driver.close() #크롬 드라이버 반환
