@@ -15,7 +15,7 @@ sys.path.append('.')
 import db
 
 #키워드로 최근 영상 찾는 함수
-def getRecentVideos(driver, keyword):
+def getRecentVideos(con, driver, keyword):
 	link = 'https://www.youtube.com/results?search_query={}&sp=CAISBAgBEAE%253D'.format(keyword)
 	driver.get(link)
 	scroll(driver, 4)
@@ -23,7 +23,7 @@ def getRecentVideos(driver, keyword):
 	returnList = [recent.get_attribute('href') for recent in recents]
 	for link in returnList:
 		if link is not None: #광고 영상은 패스
-			db.saveUnvisited(link, keyword)
+			db.saveUnvisited(con, link, keyword)
 
 def getVideoInfo(driver, link):
 	driver.get(link)
@@ -60,16 +60,14 @@ def getVideoList(driver, link):
 	return returnList	
 
 #unvisited 동영상 중 하나를 가져와서 크롤링
-def crawlVideos(driver):
-	global videoList
-	global channelList
-	link, keyword = db.getVideo()
+def crawlVideos(con, driver):
+	link, keyword = db.getUnvisited(con)
 	if link is None:
 		return
 	title, count, youtuber = getVideoInfo(driver, link)
 	channelLink = getYoutuberFromVideo(driver, link)
-	crawlChannels(driver, channelLink)
-	db.saveVideo(channelLink, title, link, count, keyword)
+	crawlChannel(con, driver, channelLink)
+	db.saveVideo(con, channelLink, title, link, count, keyword)
 
 #카워드별 최근 동영상 크롤링
 def crawlRecentVideos(driver):
@@ -100,11 +98,11 @@ def getYoutuberFromVideo(driver, link):
 	return channel
 
 #채널 크롤링
-def crawlChannels(driver, link):
-	if db.doesExist('youtubers', 'link', link):
+def crawlChannel(con, driver, link):
+	if db.doesExist(con, 'youtubers', 'link', link):
 		return
 	print('Crawling channel... : {}'.format(link))
 	driver.get(link)
 	name = driver.find_element_by_xpath('//*[@id="text-container"]').text
 	subscribers = driver.find_element_by_xpath('//*[@id="subscriber-count"]').text
-	db.saveYoutuber(name, link, subscribers)
+	db.saveYoutuber(con, name, link, subscribers)

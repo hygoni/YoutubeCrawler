@@ -22,39 +22,56 @@ def connect():
 	cur.execute("CREATE TABLE IF NOT EXISTS youtubers(name text, link text, subscribers int);")
 	cur.execute("CREATE TABLE IF NOT EXISTS videos(youtuber_link text, title text, link text, visit int, keyword text);")
 	cur.execute("CREATE TABLE IF NOT EXISTS unvisited(link text, keyword text);")
-	return con, cur
+	return con
 
-def doesExist(table, name, value, isString=True):
-	con, cur = connect()
+def connectUpdater(dbName):
+	con = sqlite3.connect(dbName)
+	cur = con.cursor()
+	cur.execute("CREATE TABLE IF NOT EXISTS youtubers_updated(name text, link text, subscribers int);")
+	return con
+
+def removeYoutuber(con, dbName):
+	cur = con.cursor()
+	sql = "SELECT link from youtubers ORDER BY RANDOM() limit 1"
+	cur.execute(sql)
+	row = cur.fetchall()[0]
+	link = row[0]
+	sql = "DELETE FROM youtubers WHERE link = '{}'".format(link)
+	cur.execute(sql)
+	con.commit()
+	return link
+
+
+def doesExist(con, table, name, value, isString=True):
+	cur = con.cursor()
 	sql = ''
 	if isString:
 		sql = "SELECT count(*) FROM {} WHERE {} = '{}'".format(table, name, value)
 	else:
 		sql = "SELECT count(*) FROM {} WHERE {} = {}".format(table, name, value)
+	print(sql)
 	cur.execute(sql)
 	count = cur.fetchone()[0]
-	con.close()
 	return count > 0
 
-def getCount(table):
-	con, cur = connect()
+def getCount(con, table):
+	cur = con.cursor()
 	sql = "SELECT count(*) FROM {}".format(table)
 	cur.execute(sql)
 	count = cur.fetchone()[0]
-	con.close()
 	return count
 
 #unvisited 동영상 중 하나를 가져온 후 DB에서 삭제함
-def getChannel():
-	con, cur = connect()
+def getChannel(con):
+	cur = connect()
 	sql = 'SELECT * FROM youtubers ORDER BY RANDOM() limit 1'
 	cur.execute(sql)
 	row = cur.fetchall()
 	return row[0]
 
-def getVideo():
+def getUnvisited(con):
 	try:
-		con, cur = connect()
+		cur = con.cursor()
 		sql = 'SELECT link, keyword FROM unvisited ORDER BY RANDOM() limit 1'
 		print(sql)
 		cur.execute(sql)
@@ -73,31 +90,28 @@ def getVideo():
 		print('No videos unvisited!')
 		return None, None
 
-def saveVideo(youtuberLink, title, link, visit, keyword):
-	if doesExist('videos', 'link', link):
+def saveVideo(con, youtuberLink, title, link, visit, keyword):
+	if doesExist(con, 'videos', 'link', link):
 		return
 	print('Saving video... : ' + link)
 	visit = regex.visitorsToInteger(visit)
-	con, cur = connect()
+	cur = con.cursor()
 	cur.execute("INSERT INTO videos VALUES(?, ?, ?, ?, ?)", (youtuberLink, title, link, visit, keyword))
 	con.commit()
-	con.close()
 
-def saveYoutuber(name, link, subscribers):
-	if doesExist('youtubers', 'link', link):
+def saveYoutuber(con, name, link, subscribers):
+	if doesExist(con, 'youtubers', 'link', link):
 		return
 	print('Saving youtuber... : ' + link)
-	con, cur = connect()
+	cur = con.cursor()
 	subscribers = regex.subscribersToInteger(subscribers)
 	cur.execute("INSERT INTO youtubers VALUES(?, ?, ?)", (name, link, subscribers))
 	con.commit()
-	con.close()
 
-def saveUnvisited(link, keyword):
-	if doesExist('unvisited', 'link', link) or doesExist('videos', 'link', link):
+def saveUnvisited(con, link, keyword):
+	if doesExist(con, 'unvisited', 'link', link) or doesExist(con, 'videos', 'link', link):
 		return
 	print('Saving unvisited... : ' + link)
-	con, cur = connect()
+	cur = con.cursor()
 	cur.execute("INSERT INTO unvisited VALUES(?, ?)", (link, keyword))
 	con.commit()
-	con.close()
